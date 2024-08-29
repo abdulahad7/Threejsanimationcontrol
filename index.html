@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three.js Character Animation with Object Holding Options</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Import map for Three.js modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/demo/build/three.module.js",
+        "three/addons/": "./jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+    // Scene Setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+
+    // Camera Setup
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 2, 5);
+
+    // Renderer Setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Orbit Controls for camera zoom and rotation
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.update();
+
+    // Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+
+    // Grid Helper
+    const gridHelper = new THREE.GridHelper(20, 40);
+    scene.add(gridHelper);
+
+    const clock = new THREE.Clock();
+    let mixer, model;
+    const actions = {};
+    let activeAction = null, previousAction = null;
+    let gui;
+    const api = { State: 'Idle', equipment: 'None' };
+
+    const moveSpeed = 0.1; // Movement speed
+    let isMoving = false;
+    let moveDirection = null;
+
+    const loader = new GLTFLoader();
+
+    // Load model and animations
+    loader.load('animations/ALS_N_Idle.glb', (gltf) => {
+      model = gltf.scene;
+      scene.add(model);
+
+      // Initialize the animation mixer
+      mixer = new THREE.AnimationMixer(model);
+
+      // Load Idle animation
+      const idleAction = mixer.clipAction(gltf.animations[0]);
+      actions['Idle'] = idleAction;
+
+      // Load Walking animation
+      loader.load('animations/ALS_N_Walk_F.glb', (gltf) => {
+        const walkAction = mixer.clipAction(gltf.animations[0]);
+        actions['Walking'] = walkAction;
+      });
+
+      // Load Jumping animation
+      loader.load('animations/ALS_N_Jump.glb', (gltf) => {
+        const jumpAction = mixer.clipAction(gltf.animations[0]);
+        actions['Jump'] = jumpAction;
+        actions['Jump'].setLoop(THREE.LoopOnce); // Ensure the jump animation plays only once
+        actions['Jump'].clampWhenFinished = true; // Stop at the end of the animation
+      });
+
+      // Load additional animations for GUI
+      loadAdditionalAnimations();
+
+      console.log('Animations loaded successfully');
+      createGUI(); // Create GUI for control
+      animate();
+    });
+
+    function loadAdditionalAnimations() {
+      // Load animations for holding objects
+      loader.load('animations/ALS_Props_M4A1.glb', (gltf) => {
+        const rifleAction = mixer.clipAction(gltf.animations[0]);
+        actions['HasRifle'] = rifleAction;
+      });
+
+      loader.load('animations/ALS_Props_Boxes.glb', (gltf) => {
+        const boxAction = mixer.clipAction(gltf.animations[0]);
+        actions['HasBox'] = boxAction;
+      });
+
+      loader.load('animations/ALS_Props_M4A1.glb', (gltf) => {
+        const barrelAction = mixer.clipAction(gltf.animations[0]);
+        actions['HasBarrel'] = barrelAction;
+      });
+    }
+
+    function createGUI() {
+      const states = ['Idle', 'Walking']; // Simplified states
+      const emotes = ['Jump'];
+
+      gui = new GUI(); // Initialize the GUI
+
+      const statesFolder = gui.addFolder('States');
+      const clipCtrl = statesFolder.add(api, 'State').options(states);
+
+      clipCtrl.onChange(() => {
+        fadeToAction(api.State, 0.5);
+      });
+
+      statesFolder.open();
+
+      const emoteFolder = gui.addFolder('Emotes');
+      emotes.forEach((name) => {
+        api[name] = function () {
+          fadeToAction(name, 0.2);
+          mixer.addEventListener('finished', restoreState);
+        };
+        emoteFolder.add(api, name);
+      });
+
+      emoteFolder.open();
+
+      // Equipment options using radio buttons
+      const equipmentFolder = gui.addFolder('Equipment');
+      equipmentFolder.add(api, 'equipment', ['None', 'Has Rifle', 'Has Box', 'Has Barrel']).name('Equipment').onChange(handleEquipmentChange);
+      equipmentFolder.open();
+    }
+
+    function handleEquipmentChange(value) {
+      stopAllAnimations();
+      if (value === 'None') {
+        fadeToAction('Idle', 0.5);
+      } else if (value === 'Has Rifle') {
+        fadeToAction('HasRifle', 0.5);
+      } else if (value === 'Has Box') {
+        fadeToAction('HasBox', 0.5);
+      } else if (value === 'Has Barrel') {
+        fadeToAction('HasBarrel', 0.5);
+      }
+    }
+
+    function stopAllAnimations() {
+      for (let anim in actions) {
+        actions[anim].stop(); // Stop all animations
+      }
+    }
+
+    function fadeToAction(name, duration) {
+      previousAction = activeAction;
+      activeAction = actions[name];
+
+      if (!activeAction) {
+        console.warn(`Animation "${name}" not found!`);
+        return;
+      }
+
+      if (previousAction && previousAction !== activeAction) {
+        previousAction.fadeOut(duration);
+      }
+
+      activeAction
+        .reset()
+        .setEffectiveTimeScale(1)
+        .setEffectiveWeight(1)
+        .fadeIn(duration)
+        .play();
+    }
+
+    function restoreState() {
+      mixer.removeEventListener('finished', restoreState);
+      fadeToAction(api.State, 0.2);
+    }
+
+    function handleMovement(key) {
+      if (!model) return;
+
+      moveDirection = key;
+
+      if (api.State === 'Walking') {
+        isMoving = true;
+        updateCharacterPosition();
+
+        if (activeAction !== actions['Walking']) {
+          fadeToAction('Walking', 0.5); // Start walking animation
+        }
+      } else if (api.State === 'Idle') {
+        changeCharacterDirection(); // Change direction only in Idle State
+      }
+    }
+
+    function changeCharacterDirection() {
+      if (!model) return;
+
+      const rotationAngle = {
+        'w': Math.PI,     // 180 degrees for forward
+        'd': Math.PI / 2, // 90 degrees for right
+        'a': -Math.PI / 2, // -90 degrees for left
+        's': 0            // 0 degrees for backward
+      };
+
+      model.rotation.y = rotationAngle[moveDirection];
+    }
+
+    function updateCharacterPosition() {
+      if (!moveDirection || !model) return;
+
+      const moveVector = new THREE.Vector3();
+      const rotationAngle = {
+        'w': Math.PI,     // 180 degrees for forward
+        'd': Math.PI / 2, // 90 degrees for right
+        'a': -Math.PI / 2, // -90 degrees for left
+        's': 0            // 0 degrees for backward
+      };
+
+      model.rotation.y = rotationAngle[moveDirection];
+
+      switch (moveDirection) {
+        case 'w':
+          moveVector.set(0, 0, -moveSpeed); // Move forward
+          break;
+        case 's':
+          moveVector.set(0, 0, moveSpeed); // Move backward
+          break;
+        case 'a':
+          moveVector.set(-moveSpeed, 0, 0); // Move left
+          break;
+        case 'd':
+          moveVector.set(moveSpeed, 0, 0); // Move right
+          break;
+      }
+
+      model.position.add(moveVector); // Apply movement
+      camera.position.add(moveVector); // Move camera along with the model
+      camera.lookAt(model.position); // Keep camera focused on model
+    }
+
+    window.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        handleMovement(key);
+      }
+    });
+
+    window.addEventListener('keyup', (event) => {
+      const key = event.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        isMoving = false;
+        moveDirection = null;
+        fadeToAction('Idle', 0.5); // Return to Idle when no movement keys are pressed
+      }
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (mixer) mixer.update(delta);
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  </script>
+</body>
+</html>
