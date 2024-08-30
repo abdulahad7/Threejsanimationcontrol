@@ -385,8 +385,8 @@
         jumpAction.clampWhenFinished = true;
 
         const jumpHeight = 1;
-        const jumpSpeed = 0.05;
-        let goingUp = true;
+        const jumpDuration = 1;
+        const startTime = performance.now();
 
         const onJumpFinished = (event) => {
           if (event.action === jumpAction) {
@@ -399,20 +399,21 @@
 
         mixer.addEventListener('finished', onJumpFinished);
 
-        const jumpInterval = setInterval(() => {
-          if (goingUp) {
-            this.model.position.y += jumpSpeed;
-            if (this.model.position.y >= jumpHeight) {
-              goingUp = false;
-            }
+        const smoothJump = () => {
+          const elapsedTime = (performance.now() - startTime) / 1000;
+          const progress = elapsedTime / jumpDuration;
+
+          if (progress < 1) {
+            const yOffset = jumpHeight * Math.sin(Math.PI * progress);
+            this.model.position.y = yOffset;
+
+            requestAnimationFrame(smoothJump);
           } else {
-            this.model.position.y -= jumpSpeed;
-            if (this.model.position.y <= 0) {
-              this.model.position.y = 0;
-              clearInterval(jumpInterval);
-            }
+            this.model.position.y = 0;
           }
-        }, 35);
+        };
+
+        smoothJump();
       }
 
       fadeOutAllAnimations(duration) {
