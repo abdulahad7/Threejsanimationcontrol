@@ -13,17 +13,17 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "/build/three.module.js",
-        "three/addons/": "./sorted/"
+        "three": "./build/three.module.js",
+        "three/addons/": "./jsm/"
       }
     }
   </script>
 
   <script type="module">
     import * as THREE from 'three';
-    import { GLTFLoader } from 'three/addons/GLTFLoader.js';
-    import { OrbitControls } from 'three/addons/OrbitControls.js';
-    import { GUI } from 'three/addons/lil-gui.module.min.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
     // Scene Setup
     const scene = new THREE.Scene();
@@ -55,16 +55,24 @@
     const gridHelper = new THREE.GridHelper(20, 40);
     scene.add(gridHelper);
 
+    // Make the canvas focusable
+    const canvas = renderer.domElement;
+    canvas.tabIndex = 0; // Allow the canvas to be focusable
+    canvas.focus(); // Focus the canvas initially
+
+    // Refocus Canvas After GUI Interaction
+    document.addEventListener('mousedown', (event) => {
+      if (event.target.closest('.lil-gui')) {
+        setTimeout(() => canvas.focus(), 0); // Delay to ensure GUI processes the click
+      }
+    });
+
     const clock = new THREE.Clock();
-    let mixer, model;
-    const actions = {};
+    let mixer, model, characterControls;
+    const actions = new Map();
     let activeAction = null, previousAction = null;
     let gui;
     const api = { State: 'Idle', equipment: 'None' };
-
-    const moveSpeed = 0.1; // Movement speed
-    let isMoving = false;
-    let moveDirection = null;
 
     const loader = new GLTFLoader();
 
@@ -78,208 +86,227 @@
 
       // Load Idle animation
       const idleAction = mixer.clipAction(gltf.animations[0]);
-      actions['Idle'] = idleAction;
+      actions.set('Idle', idleAction);
 
       // Load Walking animation
       loader.load('animations/ALS_N_Walk_F.glb', (gltf) => {
         const walkAction = mixer.clipAction(gltf.animations[0]);
-        actions['Walking'] = walkAction;
+        actions.set('Walking', walkAction);
+      });
+
+      // Load Sprinting animation
+      loader.load('animations/ALS_N_Sprint.glb', (gltf) => {
+        const sprintAction = mixer.clipAction(gltf.animations[0]);
+        sprintAction.setEffectiveTimeScale(1.2);
+        actions.set('Sprinting', sprintAction);
       });
 
       // Load Jumping animation
       loader.load('animations/ALS_N_Jump.glb', (gltf) => {
         const jumpAction = mixer.clipAction(gltf.animations[0]);
-        actions['Jump'] = jumpAction;
-        actions['Jump'].setLoop(THREE.LoopOnce); // Ensure the jump animation plays only once
-        actions['Jump'].clampWhenFinished = true; // Stop at the end of the animation
+        actions.set('Jump', jumpAction);
+        actions.get('Jump').setLoop(THREE.LoopOnce);
+        actions.get('Jump').clampWhenFinished = true;
       });
 
       // Load additional animations for GUI
       loadAdditionalAnimations();
 
       console.log('Animations loaded successfully');
-      createGUI(); // Create GUI for control
-      animate();
+      createCharacterControls(); 
     });
 
     function loadAdditionalAnimations() {
       // Load animations for holding objects
       loader.load('animations/ALS_Props_M4A1.glb', (gltf) => {
         const rifleAction = mixer.clipAction(gltf.animations[0]);
-        actions['HasRifle'] = rifleAction;
+        if (rifleAction) {
+          rifleAction.loop = THREE.LoopRepeat;
+          rifleAction.enabled = true;
+          actions.set('Has Rifle', rifleAction);
+          console.log('Rifle animation loaded');
+        } else {
+          console.warn('Rifle animation failed to load');
+        }
       });
 
-      loader.load('animations/ALS_Props_Boxes.glb', (gltf) => {
+      loader.load('animations/ALS_Props_Box.glb', (gltf) => {
         const boxAction = mixer.clipAction(gltf.animations[0]);
-        actions['HasBox'] = boxAction;
+        if (boxAction) {
+          boxAction.loop = THREE.LoopRepeat;
+          boxAction.enabled = true;
+          actions.set('Has Box', boxAction);
+          console.log('Box animation loaded');
+        } else {
+          console.warn('Box animation failed to load');
+        }
       });
 
-      loader.load('animations/ALS_Props_M4A1.glb', (gltf) => {
+      loader.load('animations/ALS_Props_Barrel.glb', (gltf) => {
         const barrelAction = mixer.clipAction(gltf.animations[0]);
-        actions['HasBarrel'] = barrelAction;
+        if (barrelAction) {
+          barrelAction.loop = THREE.LoopRepeat;
+          barrelAction.enabled = true;
+          actions.set('Has Barrel', barrelAction);
+          console.log('Barrel animation loaded');
+        } else {
+          console.warn('Barrel animation failed to load');
+        }
       });
     }
 
+function handleEquipmentChange(selectedOption) {
+  if (selectedOption === 'None') {
+    // If "None" is selected, stop all equipment animations and return to idle
+    characterControls.stopAllAnimations();
+    characterControls.fadeToAction('Idle', 0.5); // Smoothly transition back to idle
+    return;
+  }
+
+  if (characterControls) {
+    // Stop all animations first except for movement animations
+    characterControls.stopAllAnimations(true); // Pass true to preserve movement animations
+
+    // Get the selected equipment action
+    const equipmentAction = actions.get(selectedOption);
+
+    // Check if the action exists
+    if (!equipmentAction) {
+      console.warn(`Equipment animation "${selectedOption}" not found!`);
+      return;
+    }
+
+    // Create and apply the lower body mask
+    const lowerBodyMask = createLowerBodyMask(characterControls.model);
+    applyLowerBodyAnimation(equipmentAction, lowerBodyMask);
+
+    equipmentAction.reset()
+      .setEffectiveTimeScale(1)
+      .setEffectiveWeight(1)
+      .play();
+
+    // Continuous check if the checkbox is still checked
+    const checkEquipmentState = setInterval(() => {
+      if (api[selectedOption] === true) {
+        if (!equipmentAction.isRunning()) {
+          equipmentAction.reset().play();
+        }
+      } else {
+        equipmentAction.fadeOut(0.5);
+        clearInterval(checkEquipmentState);
+      }
+    }, 100); // Check every 100 milliseconds
+  }
+}
+
+
+
+    function createCharacterControls() {
+      characterControls = new CharacterControls(model, mixer, actions, controls, camera, 'Idle');
+      createGUI(); 
+      animate();
+    }
+
     function createGUI() {
-      const states = ['Idle', 'Walking']; // Simplified states
       const emotes = ['Jump'];
 
-      gui = new GUI(); // Initialize the GUI
+      gui = new GUI(); 
 
-      const statesFolder = gui.addFolder('States');
-      const clipCtrl = statesFolder.add(api, 'State').options(states);
-
-      clipCtrl.onChange(() => {
-        fadeToAction(api.State, 0.5);
-      });
-
-      statesFolder.open();
-
+      // Emotes Folder
       const emoteFolder = gui.addFolder('Emotes');
       emotes.forEach((name) => {
         api[name] = function () {
-          fadeToAction(name, 0.2);
-          mixer.addEventListener('finished', restoreState);
+          if (characterControls) {
+            characterControls.jumpForward();
+          }
         };
         emoteFolder.add(api, name);
       });
 
       emoteFolder.open();
 
-      // Equipment options using radio buttons
+      // Equipment Folder with Checkboxes
       const equipmentFolder = gui.addFolder('Equipment');
-      equipmentFolder.add(api, 'equipment', ['None', 'Has Rifle', 'Has Box', 'Has Barrel']).name('Equipment').onChange(handleEquipmentChange);
+
+      // Equipment options using checkboxes
+      const equipmentOptions = ['None', 'Has Rifle', 'Has Box', 'Has Barrel'];
+
+      equipmentOptions.forEach((option) => {
+        api[option] = false;
+
+        const checkboxCtrl = equipmentFolder.add(api, option).name(option).listen();
+
+        checkboxCtrl.onChange(() => handleCheckboxChange(option));
+      });
+
       equipmentFolder.open();
     }
 
-    function handleEquipmentChange(value) {
-      stopAllAnimations();
-      if (value === 'None') {
-        fadeToAction('Idle', 0.5);
-      } else if (value === 'Has Rifle') {
-        fadeToAction('HasRifle', 0.5);
-      } else if (value === 'Has Box') {
-        fadeToAction('HasBox', 0.5);
-      } else if (value === 'Has Barrel') {
-        fadeToAction('HasBarrel', 0.5);
-      }
-    }
-
-    function stopAllAnimations() {
-      for (let anim in actions) {
-        actions[anim].stop(); // Stop all animations
-      }
-    }
-
-    function fadeToAction(name, duration) {
-      previousAction = activeAction;
-      activeAction = actions[name];
-
-      if (!activeAction) {
-        console.warn(`Animation "${name}" not found!`);
-        return;
-      }
-
-      if (previousAction && previousAction !== activeAction) {
-        previousAction.fadeOut(duration);
-      }
-
-      activeAction
-        .reset()
-        .setEffectiveTimeScale(1)
-        .setEffectiveWeight(1)
-        .fadeIn(duration)
-        .play();
-    }
-
-    function restoreState() {
-      mixer.removeEventListener('finished', restoreState);
-      fadeToAction(api.State, 0.2);
-    }
-
-    function handleMovement(key) {
-      if (!model) return;
-
-      moveDirection = key;
-
-      if (api.State === 'Walking') {
-        isMoving = true;
-        updateCharacterPosition();
-
-        if (activeAction !== actions['Walking']) {
-          fadeToAction('Walking', 0.5); // Start walking animation
+    function handleCheckboxChange(selectedOption) {
+      // Uncheck all options first
+      Object.keys(api).forEach((key) => {
+        if (key === 'None' || key === 'Has Rifle' || key === 'Has Box' || key === 'Has Barrel') {
+          api[key] = false;
         }
-      } else if (api.State === 'Idle') {
-        changeCharacterDirection(); // Change direction only in Idle State
-      }
+      });
+
+      // Check the selected option
+      api[selectedOption] = true;
+
+      // Handle the character equipment change
+      handleEquipmentChange(selectedOption);
     }
 
-    function changeCharacterDirection() {
-      if (!model) return;
-
-      const rotationAngle = {
-        'w': Math.PI,     // 180 degrees for forward
-        'd': Math.PI / 2, // 90 degrees for right
-        'a': -Math.PI / 2, // -90 degrees for left
-        's': 0            // 0 degrees for backward
-      };
-
-      model.rotation.y = rotationAngle[moveDirection];
-    }
-
-    function updateCharacterPosition() {
-      if (!moveDirection || !model) return;
-
-      const moveVector = new THREE.Vector3();
-      const rotationAngle = {
-        'w': Math.PI,     // 180 degrees for forward
-        'd': Math.PI / 2, // 90 degrees for right
-        'a': -Math.PI / 2, // -90 degrees for left
-        's': 0            // 0 degrees for backward
-      };
-
-      model.rotation.y = rotationAngle[moveDirection];
-
-      switch (moveDirection) {
-        case 'w':
-          moveVector.set(0, 0, -moveSpeed); // Move forward
-          break;
-        case 's':
-          moveVector.set(0, 0, moveSpeed); // Move backward
-          break;
-        case 'a':
-          moveVector.set(-moveSpeed, 0, 0); // Move left
-          break;
-        case 'd':
-          moveVector.set(moveSpeed, 0, 0); // Move right
-          break;
-      }
-
-      model.position.add(moveVector); // Apply movement
-      camera.position.add(moveVector); // Move camera along with the model
-      camera.lookAt(model.position); // Keep camera focused on model
-    }
-
+    // Key Press Handling
+    const keysPressed = {};
     window.addEventListener('keydown', (event) => {
-      const key = event.key.toLowerCase();
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        handleMovement(key);
-      }
+      keysPressed[event.key.toLowerCase()] = true;
     });
 
     window.addEventListener('keyup', (event) => {
-      const key = event.key.toLowerCase();
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        isMoving = false;
-        moveDirection = null;
-        fadeToAction('Idle', 0.5); // Return to Idle when no movement keys are pressed
-      }
+      keysPressed[event.key.toLowerCase()] = false;
     });
+function createLowerBodyMask(model) {
+  const mask = new Set();
+
+  // Define bones below the waist; adjust based on your character's skeleton
+  const lowerBodyBones = [
+    'hips', 'leftUpLeg', 'rightUpLeg', 'leftLeg', 'rightLeg', 'leftFoot', 'rightFoot'
+  ];
+
+  // Traverse the model and find bones that match the lower body names
+  model.traverse((object) => {
+    if (object.isBone && lowerBodyBones.includes(object.name)) {
+      mask.add(object.uuid); // Use the UUID to identify the bones
+    }
+  });
+
+  return mask;
+}
+function applyLowerBodyAnimation(action, mask) {
+  action.setEffectiveWeight(1); // Ensure the animation is fully applied
+
+  action.getMixer().addEventListener('loop', (event) => {
+    if (event.action === action) {
+      // Update the animation on each loop iteration
+      action.getRoot().traverse((object) => {
+        if (object.isBone) {
+          // Only apply animation to bones in the mask
+          object.animations.forEach((track) => {
+            if (!mask.has(track.uuid)) {
+              track.setEffectiveWeight(0); // Ignore bones not in the mask
+            }
+          });
+        }
+      });
+    }
+  });
+}
 
     function animate() {
       requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      if (mixer) mixer.update(delta);
+      if (characterControls) characterControls.update(delta, keysPressed);
       renderer.render(scene, camera);
     }
 
@@ -289,6 +316,233 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    // Character Controls Class
+    class CharacterControls {
+        constructor(model, mixer, animationsMap, orbitControl, camera, currentAction) {
+            this.model = model;
+            this.mixer = mixer;
+            this.animationsMap = animationsMap;
+            this.currentAction = currentAction;
+            this.animationsMap.forEach((value, key) => {
+                if (key === currentAction) {
+                    value.play();
+                }
+            });
+            this.orbitControls = orbitControl;
+            this.camera = camera;
+
+            this.walkDirection = new THREE.Vector3();
+            this.rotateAngle = new THREE.Vector3(0, 1, 0);
+            this.rotateQuaternion = new THREE.Quaternion();
+            this.cameraTarget = new THREE.Vector3();
+
+            this.toggleRun = false;
+            this.fadeDuration = 0.2;
+            this.walkVelocity = 2;
+            this.runVelocity = 4;
+            this.jumpVelocity = 0.1;
+            this.updateCameraTarget(0, 0);
+        }
+
+     fadeToAction(name, duration) {
+    const previousAction = this.animationsMap.get(this.currentAction);
+    const activeAction = this.animationsMap.get(name);
+
+    if (!activeAction) {
+        console.warn(`Animation "${name}" not found!`);
+        return;
+    }
+
+    if (previousAction && previousAction !== activeAction) {
+        previousAction.fadeOut(duration); // Fade out the current action smoothly
+    }
+
+    activeAction
+        .reset()
+        .setEffectiveTimeScale(1)
+        .setEffectiveWeight(1)
+        .fadeIn(duration) // Smoothly fade in the new action
+        .play();
+
+    this.currentAction = name; // Update the current action state
+}
+
+
+        isEquipmentAnimation(action) {
+            const equipmentActions = ['Has Rifle', 'Has Box', 'Has Barrel'];
+            return equipmentActions.includes(action._clip.name);
+        }
+
+     stopAllAnimations(preserveMovement = false) {
+  this.animationsMap.forEach((action, key) => {
+    // Stop all animations except movement ones if preserveMovement is true
+    if (preserveMovement && (key === 'Walking' || key === 'Sprinting' || key === 'Idle')) {
+      return; // Skip stopping movement animations
+    }
+    action.fadeOut(0.2); // Use fade out to stop current animations smoothly
+  });
+}
+
+
+jumpForward() {
+    const directionPressed = ["w", "a", "s", "d"].some((key) => keysPressed[key] === true);
+
+    const jumpAction = this.animationsMap.get('Jump');
+    const currentAction = this.animationsMap.get(this.currentAction);
+
+    console.log(`Before Jump: Current Animation - ${this.currentAction}`);
+
+    // Prepare jump animation
+    jumpAction.reset()
+        .setEffectiveTimeScale(0.5) // Adjust speed for smoother jump
+        .setEffectiveWeight(1)
+        .crossFadeFrom(currentAction, 0.3, true) // Smooth blending duration for jump start
+        .play();
+
+    jumpAction.setLoop(THREE.LoopOnce);
+    jumpAction.clampWhenFinished = true;
+
+    const onJumpFinished = (event) => {
+        if (event.action === jumpAction) {
+            mixer.removeEventListener('finished', onJumpFinished);
+            console.log('Jump Finished: Transitioning to Idle State');
+
+            // Fade out the jump animation smoothly
+            this.fadeOutAllAnimations(0.5); // Fade out all actions smoothly over 0.5 seconds
+        }
+    };
+
+    mixer.addEventListener('finished', onJumpFinished);
+}
+
+
+fadeOutAllAnimations(duration) {
+    this.animationsMap.forEach((action) => {
+        action.fadeOut(duration); // Smoothly fade out each action
+    });
+
+    // Smoothly blend back to idle after fading out all actions
+    setTimeout(() => {
+        this.fadeToAction('Idle', duration); // Smooth transition to Idle
+    }, duration * 1000); // Wait for the fade-out duration before transitioning to Idle
+}
+
+
+       smoothTransitionToIdle(duration = 1.0) {
+    const idleAction = this.animationsMap.get('Idle');
+    if (idleAction) {
+        console.log('Transitioning smoothly to Idle Animation');
+
+        // Ensure a smooth transition by fading out all animations
+       // this.stopAllAnimations(); // Stops all other animations to avoid conflicts
+
+        // Smoothly blend back to idle over the specified duration
+        idleAction.reset()
+            .setEffectiveTimeScale(1)
+            .setEffectiveWeight(1)
+            .fadeIn(duration) // Duration for smooth transition
+            .play();
+
+        this.currentAction = 'Idle';
+        console.log(`Current Animation after Reset: ${this.currentAction}`);
+    }
+}
+
+
+  update(delta, keysPressed) {
+  const shiftPressed = keysPressed['shift'];
+  const directionPressed = ["w", "a", "s", "d"].some((key) => keysPressed[key] === true);
+  let play = "";
+
+  // Determine if any equipment is selected
+  const equipmentSelected = api['Has Rifle'] || api['Has Box'] || api['Has Barrel'];
+
+  // If equipment is selected, keep the equipment pose but allow movement animations
+  if (directionPressed && equipmentSelected) {
+    play = shiftPressed ? "Sprinting" : "Walking"; // Allow sprinting or walking animations while equipment is selected
+  } else if (directionPressed && shiftPressed) {
+    play = "Sprinting";
+  } else if (directionPressed) {
+    play = "Walking";
+  } else {
+    play = "Idle";
+    api.State = "Idle";
+  }
+
+  if (this.currentAction !== play && !this.isEquipmentAnimation(this.animationsMap.get(play))) {
+    this.fadeToAction(play, this.fadeDuration);
+  }
+
+  this.mixer.update(delta);
+
+  if (directionPressed) {
+    const angleYCameraDirection = Math.atan2(
+      this.camera.position.x - this.model.position.x,
+      this.camera.position.z - this.model.position.z
+    );
+
+    const directionOffset = this.directionOffset(keysPressed);
+
+    this.rotateQuaternion.setFromAxisAngle(
+      this.rotateAngle,
+      angleYCameraDirection + directionOffset
+    );
+
+    this.model.quaternion.rotateTowards(this.rotateQuaternion, 0.2);
+
+    this.camera.getWorldDirection(this.walkDirection);
+    this.walkDirection.negate();
+    this.walkDirection.y = 0;
+    this.walkDirection.normalize();
+    this.walkDirection.applyAxisAngle(this.rotateAngle, directionOffset);
+
+    const moveX = this.walkDirection.x * this.walkVelocity * delta;
+    const moveZ = this.walkDirection.z * this.walkVelocity * delta;
+    this.model.position.x += moveX;
+    this.model.position.z += moveZ;
+
+    this.updateCameraTarget(moveX, moveZ);
+  }
+}
+
+        updateCameraTarget(moveX, moveZ) {
+            this.camera.position.x += moveX;
+            this.camera.position.z += moveZ;
+
+            this.cameraTarget.x = this.model.position.x;
+            this.cameraTarget.y = this.model.position.y + 1;
+            this.cameraTarget.z = this.model.position.z;
+            this.orbitControls.target = this.cameraTarget;
+        }
+
+        directionOffset(keysPressed) {
+            let directionOffset = 0;
+
+            if (keysPressed["s"]) {
+                if (keysPressed["a"]) {
+                    directionOffset = Math.PI / 4;
+                } else if (keysPressed["d"]) {
+                    directionOffset = -Math.PI / 4;
+                } else {
+                    directionOffset = 0;
+                }
+            } else if (keysPressed["w"]) {
+                if (keysPressed["a"]) {
+                    directionOffset = Math.PI / 4 - Math.PI / 2;
+                } else if (keysPressed["d"]) {
+                    directionOffset = -Math.PI / 4 + Math.PI / 2;
+                } else {
+                    directionOffset = Math.PI;
+                }
+            } else if (keysPressed["d"]) {
+                directionOffset = Math.PI / 2;
+            } else if (keysPressed["a"]) {
+                directionOffset = -Math.PI / 2;
+            }
+
+            return directionOffset;
+        }
+    }
   </script>
 </body>
 </html>
