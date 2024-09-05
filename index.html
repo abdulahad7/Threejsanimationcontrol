@@ -98,10 +98,6 @@
     const walkForwardAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Walking Forward', walkForwardAction);
   
-    // Display the names of the animation tracks
-    gltf.animations[0].tracks.forEach((track) => {
-        console.log(`Animation Track Name: ${track.name}`);
-    });
 });
 
       loader.load('animations/ALS_N_Walk_B.glb', (gltf) => {
@@ -122,42 +118,42 @@
 loader.load('animations/ALS_Lean_F.glb', (gltf) => {
     const leanForwardAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Lean Forward', leanForwardAction);
-    console.log('Lean Forward animation loaded');
+    //console.log('Lean Forward animation loaded');
   }, undefined, (error) => {
-    console.error('Error loading Lean Forward animation:', error);
+    //console.error('Error loading Lean Forward animation:', error);
   });
 
   loader.load('animations/ALS_Lean_B.glb', (gltf) => {
     const leanBackwardAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Lean Backward', leanBackwardAction);
-    console.log('Lean Backward animation loaded');
+    //console.log('Lean Backward animation loaded');
   }, undefined, (error) => {
-    console.error('Error loading Lean Backward animation:', error);
+    //console.error('Error loading Lean Backward animation:', error);
   });
 
   loader.load('animations/ALS_Lean_L.glb', (gltf) => {
     const leanLeftAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Lean Left', leanLeftAction);
-    console.log('Lean Left animation loaded');
+    //console.log('Lean Left animation loaded');
   }, undefined, (error) => {
-    console.error('Error loading Lean Left animation:', error);
+    //console.error('Error loading Lean Left animation:', error);
   });
 
   loader.load('animations/ALS_Lean_R.glb', (gltf) => {
     const leanRightAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Lean Right', leanRightAction);
-    console.log('Lean Right animation loaded');
+    //console.log('Lean Right animation loaded');
   }, undefined, (error) => {
-    console.error('Error loading Lean Right animation:', error);
+    //console.error('Error loading Lean Right animation:', error);
   });
   
  // Load Sprinting animation
   loader.load('animations/ALS_N_Sprint.glb', (gltf) => {
     const sprintingAction = mixer.clipAction(gltf.animations[0]);
     actions.set('Sprinting', sprintingAction); // Add sprinting animation to actions map
-    console.log('Sprinting animation loaded');
+   // console.log('Sprinting animation loaded');
   }, undefined, (error) => {
-    console.error('Error loading Sprinting animation:', error);
+    //console.error('Error loading Sprinting animation:', error);
   });
   
       // Load diagonal animations
@@ -189,21 +185,21 @@ loader.load('animations/ALS_Lean_F.glb', (gltf) => {
           jumpAction.setLoop(THREE.LoopOnce);
           jumpAction.clampWhenFinished = true;
           actions.set('Jump', jumpAction);
-          console.log('Jump animation loaded');
+          //console.log('Jump animation loaded');
         } else {
-          console.warn('Jump animation failed to load');
+          //console.warn('Jump animation failed to load');
         }
       }, undefined, (error) => {
-        console.error('Error loading Jump animation:', error);
+        //console.error('Error loading Jump animation:', error);
       });
 
       // Load additional animations (e.g., for holding objects)
       loadAdditionalAnimations();
 
-      console.log('Animations loaded successfully');
+      //console.log('Animations loaded successfully');
       createCharacterControls();
     }, undefined, (error) => {
-      console.error('Error loading character model:', error);
+      //console.error('Error loading character model:', error);
     });
 
     function loadAdditionalAnimations() {
@@ -216,10 +212,10 @@ loader.load('animations/ALS_Lean_F.glb', (gltf) => {
           actions.set('Has Rifle', rifleAction);
           console.log('Rifle animation loaded');
         } else {
-          console.warn('Rifle animation failed to load');
+          //console.warn('Rifle animation failed to load');
         }
       }, undefined, (error) => {
-        console.error('Error loading Rifle animation:', error);
+        //console.error('Error loading Rifle animation:', error);
       });
 
       loader.load('animations/ALS_Props_Box.glb', (gltf) => {
@@ -228,12 +224,12 @@ loader.load('animations/ALS_Lean_F.glb', (gltf) => {
           boxAction.loop = THREE.LoopRepeat;
           boxAction.enabled = true;
           actions.set('Has Box', boxAction);
-          console.log('Box animation loaded');
+          //console.log('Box animation loaded');
         } else {
-          console.warn('Box animation failed to load');
+          //console.warn('Box animation failed to load');
         }
       }, undefined, (error) => {
-        console.error('Error loading Box animation:', error);
+        //console.error('Error loading Box animation:', error);
       });
 
       loader.load('animations/ALS_Props_Barrel.glb', (gltf) => {
@@ -242,12 +238,12 @@ loader.load('animations/ALS_Lean_F.glb', (gltf) => {
           barrelAction.loop = THREE.LoopRepeat;
           barrelAction.enabled = true;
           actions.set('Has Barrel', barrelAction);
-          console.log('Barrel animation loaded');
+          //console.log('Barrel animation loaded');
         } else {
-          console.warn('Barrel animation failed to load');
+         // console.warn('Barrel animation failed to load');
         }
       }, undefined, (error) => {
-        console.error('Error loading Barrel animation:', error);
+        //console.error('Error loading Barrel animation:', error);
       });
     }
 
@@ -267,7 +263,7 @@ function handleEquipmentChange(selectedOption) {
             return;
         }
 
-        equipmentAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(0.5).play();
+        equipmentAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(3).fadeIn(0.5).play();
 
         const checkEquipmentState = setInterval(() => {
             if (api[selectedOption] === true) {
@@ -347,37 +343,6 @@ function handleEquipmentChange(selectedOption) {
     window.addEventListener('keyup', (event) => {
       keysPressed[event.key.toLowerCase()] = false;
     });
-
-    function createLowerBodyMask(model) {
-      const mask = new Set();
-      const lowerBodyBones = ['hips', 'leftUpLeg', 'rightUpLeg', 'leftLeg', 'rightLeg', 'leftFoot', 'rightFoot'];
-
-      model.traverse((object) => {
-        if (object.isBone && lowerBodyBones.includes(object.name)) {
-          mask.add(object.uuid);
-        }
-      });
-
-      return mask;
-    }
-
-    function applyLowerBodyAnimation(action, mask) {
-      action.setEffectiveWeight(1);
-
-      action.getMixer().addEventListener('loop', (event) => {
-        if (event.action === action) {
-          action.getRoot().traverse((object) => {
-            if (object.isBone) {
-              object.animations.forEach((track) => {
-                if (!mask.has(track.uuid)) {
-                  track.setEffectiveWeight(0);
-                }
-              });
-            }
-          });
-        }
-      });
-    }
 
     function animate() {
       requestAnimationFrame(animate);
@@ -529,71 +494,105 @@ update(delta, keysPressed) {
     let leanAction;
     const leanDuration = 0.6; // Duration for the lean animation in seconds
     const equipmentSelected = api['Has Rifle'] || api['Has Box'] || api['Has Barrel'];
+if (shiftPressed) {
+play = "Sprinting";
+        this.walkVelocity = this.sprintVelocity;
+}else if (keysPressed['w'] && keysPressed['a']) {
+        play = "Walking Forward";
+		leanAction = '';
+        this.walkDirection.set(0, 0, -1);
+        this.rotateAngle.set(0, 1, 0);
+        this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(30));
+        this.walkDirection.applyQuaternion(this.rotateQuaternion);
+		this.model.quaternion.rotateTowards(this.rotateQuaternion, 0.2);
 
-    // Determine the animation based on key presses and equipment
-    if (directionPressed) {
-        // Handle directional animations
-        if (keysPressed['w'] && keysPressed['a']) {
-            play = "Walking Forward Left";
-            this.walkDirection.set(0, 0, -1);
-            this.rotateAngle.set(0, 1, 0);
-            this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(30));
-            this.walkDirection.applyQuaternion(this.rotateQuaternion);
-        } else if (keysPressed['w'] && keysPressed['d']) {
-            play = "Walking Forward Right";
-            this.walkDirection.set(0, 0, -1);
-            this.rotateAngle.set(0, 1, 0);
-            this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(-30));
-            this.walkDirection.applyQuaternion(this.rotateQuaternion);
-        } else if (keysPressed['s'] && keysPressed['a']) {
-            play = "Walking Backward Left";
-            this.walkDirection.set(0, 0, 1);
-            this.rotateAngle.set(0, 1, 0);
-            this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(-30));
-            this.walkDirection.applyQuaternion(this.rotateQuaternion);
-        } else if (keysPressed['s'] && keysPressed['d']) {
-            play = "Walking Backward Right";
-            this.walkDirection.set(0, 0, 1);
-            this.rotateAngle.set(0, 1, 0);
-            this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(30));
-            this.walkDirection.applyQuaternion(this.rotateQuaternion);
-        } else if (keysPressed['w']) {
-            play = "Walking Forward";
-            leanAction = this.animationsMap.get('Lean Forward');
-            this.walkDirection.set(0, 0, -1);
-        } else if (keysPressed['s']) {
-            play = "Walking Backward";
-            leanAction = this.animationsMap.get('Lean Backward');
-            this.walkDirection.set(0, 0, 1);
-        } else if (keysPressed['a']) {
-            play = "Walking Left";
-            leanAction = this.animationsMap.get('Lean Left');
-            this.walkDirection.set(-1, 0, 0);
-        } else if (keysPressed['d']) {
-            play = "Walking Right";
-            leanAction = this.animationsMap.get('Lean Right');
-            this.walkDirection.set(1, 0, 0);
-        }
+    } else if (keysPressed['w'] && keysPressed['d']) {
+        play = "Walking Forward Right";
+		leanAction = '';
+		
+        this.walkDirection.set(0, 0, -1);
+        //this.rotateAngle.set(0, 1, 0);
+        //this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(-30));
+        //this.walkDirection.applyQuaternion(this.rotateQuaternion);
+    } else if (keysPressed['s'] && keysPressed['a']) {
+        play = "Walking Backward Left";
+        this.walkDirection.set(0, 0, 1);
+        //this.rotateAngle.set(0, 1, 0);
+        //this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(-30));
+        //this.walkDirection.applyQuaternion(this.rotateQuaternion);
+    } else if (keysPressed['s'] && keysPressed['d']) {
+        play = "Walking Backward Right";
+        this.walkDirection.set(0, 0, 1);
+        //this.rotateAngle.set(0, 1, 0);
+        //this.rotateQuaternion.setFromAxisAngle(this.rotateAngle, THREE.MathUtils.degToRad(30));
+        //this.walkDirection.applyQuaternion(this.rotateQuaternion);
+    } else if (keysPressed['w']) {
+        play = "Walking Forward";
+        leanAction = this.animationsMap.get('Lean Forward');
+        this.walkDirection.set(0, 0, -1);
+    } else if (keysPressed['s']) {
+        play = "Walking Backward";
+        leanAction = this.animationsMap.get('Lean Backward');
+        this.walkDirection.set(0, 0, 1);
+    } else if (keysPressed['a']) {
+        play = "Walking Left";
+        leanAction = this.animationsMap.get('Lean Left');
+        this.walkDirection.set(-1, 0, 0);
+    } else if (keysPressed['d']) {
+        play = "Walking Right";
+        leanAction = this.animationsMap.get('Lean Right');
+        this.walkDirection.set(1, 0, 0);
+    } else {
+        play = 'Idle';
+    }
+ // Ensure actions are defined
+const idleAction = this.animationsMap.get('Idle');
+const walkAction = this.animationsMap.get(play);
 
-        // Smooth transition from lean to walking
-        if (leanAction && this.currentAction !== play) {
-            leanAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();
-            const walkAction = this.animationsMap.get(play);
-            if (walkAction) {
-                walkAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(1);
-                leanAction.crossFadeTo(walkAction, leanDuration, false);
-                walkAction.play();
-                this.currentAction = play;
-                console.log(`Smooth transition from Lean to ${play}`);
-            }
-        }
+if (leanAction && this.currentAction !== play) {
+    // Step 1: Transition from Idle to a blend of Walk and Lean
+    //idleAction.fadeOut(0.3); // Fade out idle quickly
+    walkAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(0.5).fadeIn(0.3).play();
+    leanAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(0.5).fadeIn(0.3).play();
 
-       if (equipmentSelected) {
-	   
-                 }
-    }  else {
-        play = "Idle";
-        api.State = "Idle";
+    // Step 2: After 1 second, transition smoothly to Walk only
+    setTimeout(() => {
+        leanAction.fadeOut(1); // Smoothly fade out Lean over 1 second
+        walkAction.setEffectiveWeight(1); // Ensure Walk is fully weighted
+        console.log("Transitioning to Walk only"); // Debugging: Confirm transition
+    }, 500); // Wait 1 second before transitioning
+}
+
+//if (leanAction && this.currentAction !== play) {
+  //const secondAction = this.animationsMap.get(play);
+
+//this.animationsMap.get('Idle').crossFadeTo(leanAction, 0.5, false).play();
+//this.animationsMap.get('Idle').crossFadeTo(leanAction, 0.5, false).play().crossFadeTo(this.animationsMap.get(secondAction), 0.5, false);
+
+/*
+  if (leanAction && secondAction) {
+    console.log(`Blending from ${leanAction._clip.name} to ${secondAction._clip.name}`); // Debugging log
+
+    // Start the lean animation
+    leanAction.reset().setEffectiveTimeScale(0.5).setEffectiveWeight(0.5).fadeIn(0.5).play();
+
+    // Smoothly transition from lean to the second action
+    leanAction.crossFadeTo(secondAction, 0.5, false); // Use a non-zero duration to ensure smooth transition
+
+    // Update current action to the name of the second action
+    this.currentAction = play;
+
+    // Ensure the second animation continues playing smoothly after the transition
+    setTimeout(() => {
+      secondAction.setEffectiveTimeScale(1).setEffectiveWeight(1).play();
+    }, 500); // Delay (500ms) to allow for smooth transition
+  } else {
+    console.warn(`One or both animations are not found: ${leanAction ? leanAction._clip.name : 'undefined'} or ${secondAction ? secondAction._clip.name : 'undefined'}`);
+  } */
+
+
+    if (equipmentSelected) {
+        // Handle equipment animation if selected
     }
 
     // Ensure the correct animation plays
@@ -603,13 +602,14 @@ update(delta, keysPressed) {
 
     this.mixer.update(delta);
 
+    // Move the character if any directional key is pressed
     if (directionPressed || shiftPressed) {
         this.walkDirection.normalize();
-        const moveX = this.walkDirection.x * this.walkVelocity * delta;
-        const moveZ = this.walkDirection.z * this.walkVelocity * delta;
+        const moveX = this.walkDirection.x * this.walkVelocity * delta * 1.5;
+        const moveZ = this.walkDirection.z * this.walkVelocity * delta * 1.5;
         this.model.position.x += moveX;
         this.model.position.z += moveZ;
-        console.log("Character Position:", this.model.position);
+        //console.log("Character Position:", this.model.position);
 
         this.updateCameraTarget(moveX, moveZ);
     }
@@ -625,46 +625,7 @@ update(delta, keysPressed) {
         this.orbitControls.target = this.cameraTarget;
       }
 
-      directionOffset(keysPressed) {
-        let directionOffset = 0;
-
-        if (keysPressed["s"]) {
-          if (keysPressed["d"]) {
-            directionOffset = Math.PI / 4;
-          } else if (keysPressed["a"]) {
-            directionOffset = -Math.PI / 4;
-          } else {
-            directionOffset = 0;
-          }
-        } else if (keysPressed["w"]) {
-          if (keysPressed["d"]) {
-            directionOffset = Math.PI - Math.PI / 4;
-          } else if (keysPressed["a"]) {
-            directionOffset = -(Math.PI - Math.PI / 4);
-          } else {
-            directionOffset = Math.PI;
-          }
-        } else if (keysPressed["d"]) {
-          if (keysPressed["w"]) {
-            directionOffset = -Math.PI / 4;
-          } else if (keysPressed["s"]) {
-            directionOffset = Math.PI / 4;
-          } else {
-            directionOffset = Math.PI / 2;
-          }
-        } else if (keysPressed["a"]) {
-          if (keysPressed["w"]) {
-            directionOffset = Math.PI - Math.PI / 4;
-          } else if (keysPressed["s"]) {
-            directionOffset = -(Math.PI - Math.PI / 4);
-          } else {
-            directionOffset = -Math.PI / 2;
-          }
-        }
-
-        return directionOffset;
-      }
     }
   </script>
 </body>
-</html>
+</html> 	
